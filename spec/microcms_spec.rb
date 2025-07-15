@@ -72,7 +72,7 @@ describe MicroCMS do
 
       res = client.list('endpoint')
 
-      expect(res.contents).to eq [OpenStruct.new(content)]
+      expect(res.contents).to eq [MicroCMS::ResponseObject.new(content)]
     end
   end
 
@@ -87,7 +87,7 @@ describe MicroCMS do
 
       res = client.get('endpoint', 'foo')
 
-      expect(res).to eq OpenStruct.new(content)
+      expect(res).to eq MicroCMS::ResponseObject.new(content)
     end
   end
 
@@ -104,7 +104,7 @@ describe MicroCMS do
 
       res = client.create('endpoint', { text: 'Hello, new content!' })
 
-      expect(res).to eq OpenStruct.new({ id: 'bar' })
+      expect(res).to eq MicroCMS::ResponseObject.new({ id: 'bar' })
     end
   end
 
@@ -122,7 +122,7 @@ describe MicroCMS do
 
       res = client.create('endpoint', { id: 'bar', text: 'Hello, new content!' })
 
-      expect(res).to eq OpenStruct.new({ id: 'bar' })
+      expect(res).to eq MicroCMS::ResponseObject.new({ id: 'bar' })
     end
   end
 
@@ -140,7 +140,7 @@ describe MicroCMS do
 
       res = client.create('endpoint', { text: 'Hello, new content!' }, { status: 'draft' })
 
-      expect(res).to eq OpenStruct.new({ id: 'bar' })
+      expect(res).to eq MicroCMS::ResponseObject.new({ id: 'bar' })
     end
   end
 
@@ -158,7 +158,7 @@ describe MicroCMS do
 
       res = client.update('endpoint', { id: 'bar', text: 'Hello, new content!' })
 
-      expect(res).to eq OpenStruct.new({ id: 'bar' })
+      expect(res).to eq MicroCMS::ResponseObject.new({ id: 'bar' })
     end
   end
 

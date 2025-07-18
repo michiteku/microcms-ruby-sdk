@@ -20,6 +20,99 @@ module MicroCMS
     end
   end
 
+  # ResponseObject: replacement for OpenStruct
+  class ResponseObject
+    def initialize(hash = {})
+      @data = hash.transform_keys(&:to_sym)
+      @data.each do |key, value|
+        @data[key] = convert_value(value)
+      end
+    end
+
+    def ==(other)
+      case other
+      when ResponseObject
+        @data == other.instance_variable_get(:@data)
+      when Hash
+        @data == other.transform_keys(&:to_sym)
+      else
+        false
+      end
+    end
+
+    def to_h
+      @data.transform_values do |value|
+        case value
+        when ResponseObject
+          value.to_h
+        when Array
+          value.map { |item| item.is_a?(ResponseObject) ? item.to_h : item }
+        else
+          value
+        end
+      end
+    end
+
+    def [](key)
+      @data[key.to_sym]
+    end
+
+    def []=(key, value)
+      @data[key.to_sym] = convert_value(value)
+    end
+
+    def method_missing(method_name, *args, &block)
+      method_str = method_name.to_s
+
+      if method_str.end_with?('=')
+        key = method_str.chomp('=').to_sym
+        @data[key] = convert_value(args.first)
+      elsif @data.key?(method_name)
+        @data[method_name]
+      else
+        super
+      end
+    end
+
+    def respond_to_missing?(method_name, include_private = false)
+      method_str = method_name.to_s
+      method_str.end_with?('=') || @data.key?(method_name) || super
+    end
+
+    def delete_field(key)
+      @data.delete(key.to_sym)
+    end
+
+    def keys
+      @data.keys
+    end
+
+    def values
+      @data.values
+    end
+
+    def each(&block)
+      @data.each(&block)
+    end
+
+    def inspect
+      "#<#{self.class.name} #{@data.inspect}>"
+    end
+
+    private
+
+    def convert_value(value)
+      case value
+      when Hash
+        ResponseObject.new(value)
+      when Array
+        value.map { |item| convert_value(item) }
+      else
+        value
+      end
+    end
+  end
+
   # HttpUtil
   module HttpUtil
     def send_http_request(method, endpoint, path, query = nil, body = nil)
@@ -30,7 +123,7 @@ module MicroCMS
 
       raise APIError.new(status_code: res.code.to_i, body: res.body) if res.code.to_i >= 400
 
-      JSON.parse(res.body, object_class: OpenStruct) if res.header['Content-Type'].include?('application/json') # rubocop:disable Style/OpenStructUse
+      parse_json_response(res.body) if res.header['Content-Type'].include?('application/json')
     end
 
     private
@@ -60,7 +153,7 @@ module MicroCMS
       origin = "https://#{@service_domain}.microcms.io"
       path_with_id = path ? "/api/v1/#{endpoint}/#{path}" : "/api/v1/#{endpoint}"
       encoded_query =
-        if !query || query.size.zero?
+        if !query || query.empty?
           ''
         else
           "?#{URI.encode_www_form(query)}"
@@ -74,6 +167,22 @@ module MicroCMS
       http.use_ssl = true
 
       http
+    end
+
+    def parse_json_response(body)
+      parsed = JSON.parse(body)
+      convert_to_object(parsed)
+    end
+
+    def convert_to_object(obj)
+      case obj
+      when Hash
+        ResponseObject.new(obj)
+      when Array
+        obj.map { |item| convert_to_object(item) }
+      else
+        obj
+      end
     end
   end
 
@@ -102,7 +211,7 @@ module MicroCMS
         id,
         {
           draftKey: option[:draft_key],
-          fields: option[:fields] ? option[:fields].join(',') : nil,
+          fields: option[:fields]&.join(','),
           depth: option[:depth]
         }.select { |_key, value| value }
       )
@@ -117,7 +226,7 @@ module MicroCMS
     end
 
     def update(endpoint, content)
-      body = content.reject { |key, _value| key == :id }
+      body = content.except(:id)
       send_http_request('PATCH', endpoint, content[:id], nil, body)
     end
 
@@ -133,18 +242,18 @@ module MicroCMS
         draftKey: option[:draftKey],
         limit: option[:limit],
         offset: option[:offset],
-        orders: option[:orders] ? option[:orders].join(',') : nil,
+        orders: option[:orders]&.join(','),
         q: option[:q],
-        fields: option[:fields] ? option[:fields].join(',') : nil,
+        fields: option[:fields]&.join(','),
         filters: option[:filters],
         depth: option[:depth],
-        ids: option[:ids] ? option[:ids].join(',') : nil
+        ids: option[:ids]&.join(',')
       }.select { |_key, value| value }
     end
     # rubocop:enable Style/MethodLength
 
     def put(endpoint, content, option = {})
-      body = content.reject { |key, _value| key == :id }
+      body = content.except(:id)
       send_http_request('PUT', endpoint, content[:id], option, body)
     end
 
